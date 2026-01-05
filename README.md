@@ -1,0 +1,95 @@
+# Kotlin Volumetric Renderer
+
+A high-performance, GPU-accelerated 3D volumetric rendering application built with **Kotlin Multiplatform** and **Compose Desktop**. This project is a modern migration of a legacy C++/OpenGL ray caster, designed for medical imaging visualization (CT/MRI).
+
+## 🚀 Features
+
+### 🖥️ Rendering Engine
+- **GPU Ray Casting:** High-quality volumetric rendering using GLSL 4.1 shaders.
+- **Advanced Shading:** Phong lighting model with configurable ambient, diffuse, and specular properties.
+- **Opacity Correction:** Artifact-free rendering with opacity correction and gradient-based lighting.
+- **Offscreen Rendering:** Stable, flicker-free rendering using FBOs integrated into Compose Desktop.
+
+### 🎨 Visualization Tools
+- **Transfer Function Editor:** Professional-grade editor with:
+  - Gradient stops with color interpolation.
+  - Opacity curve editing.
+  - Real-time histogram overlay.
+- **Material Controls:** Real-time adjustment of lighting (position, color) and material properties (shininess, ambient/diffuse/specular).
+- **Presets:** Built-in presets for common scenarios (CT Anatomy, Cardiac MRI, Bone, Soft Tissue).
+
+### 📂 Data Support
+- **DICOM Support:** Loads single DICOM files and full series directories using `dcm4che`.
+- **NIfTI Support:** Native support for `.nii` and `.nii.gz` files.
+- **16-bit Precision:** Full support for high-dynamic-range medical data.
+
+## 🛠️ Technology Stack
+
+- **Language:** Kotlin 1.9.22 (Multiplatform)
+- **UI Framework:** Compose Desktop 1.5.11
+- **Graphics API:** OpenGL 4.1 Core Profile (via JOGL 2.5.0)
+- **Build System:** Gradle 8.5
+- **DICOM Library:** dcm4che 5.31.0
+
+## 📦 Project Structure
+
+```
+kotlin-volumetric-renderer/
+├── core/           # Shared logic (Math, Data Models, Shaders)
+├── desktop/        # Desktop Application (Compose UI + JOGL Renderer)
+├── renderer/       # Platform-specific Rendering Backends
+└── data/           # Sample datasets
+```
+
+## 🏃‍♂️ Getting Started
+
+### Prerequisites
+- JDK 17 or higher
+- OpenGL 4.1 compatible graphics card
+
+### Running the Application
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd kotlin-volumetric-renderer
+   ```
+
+2. **Run with a sample file:**
+   ```bash
+   ./gradlew desktop:run --args="path/to/your/file.nii.gz"
+   ```
+
+   Or load a DICOM directory:
+   ```bash
+   ./gradlew desktop:run --args="path/to/dicom/series/"
+   ```
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| **Mouse Drag** | Rotate Camera (Arcball) |
+| **Scroll** | Zoom In/Out |
+| **W / A / S / D** | Move Camera |
+| **Q / Space** | Move Up/Down |
+| **P** | Cycle Transfer Function Presets |
+| **G** | Toggle Debug Modes (Normal -> Density -> Coords) |
+
+## 📅 Development Status
+
+- **Phase 1: Desktop Implementation** (✅ Complete)
+  - [x] Core Math & Rendering Architecture
+  - [x] JOGL Integration & Offscreen Rendering
+  - [x] DICOM/NIfTI Data Loading
+  - [x] Transfer Function Editor (UI & Logic)
+  - [x] Material & Lighting Controls
+  
+- **Phase 2: Mobile Implementation** (🚧 Planned)
+  - [ ] Android Project Setup
+  - [ ] OpenGL ES 3.0 Migration
+  - [ ] Touch Controls
+
+## 📄 License
+
+MIT License
