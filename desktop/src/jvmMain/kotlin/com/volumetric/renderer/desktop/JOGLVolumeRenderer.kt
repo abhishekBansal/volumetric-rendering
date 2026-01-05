@@ -228,21 +228,51 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         // Create textures if needed
         if (renderState == null) {
             println("[display] Creating textures...")
+
+            // Derive physical spacing from metadata (defaults to 1.0 if missing)
+            val meta = volume.metadata
+            val px = meta.pixelSpacing.getOrNull(0) ?: 1f
+            val py = meta.pixelSpacing.getOrNull(1) ?: 1f
+            val pz = meta.sliceThickness
+
+            val physX = px * volume.dimensions.width
+            val physY = py * volume.dimensions.height
+            val physZ = pz * volume.dimensions.depth
+
+            // Normalize so the largest dimension maps to size 1.0 in world-space
+            val maxPhys = maxOf(physX, physY, physZ)
+            val scaleX = physX / maxPhys
+            val scaleY = physY / maxPhys
+            val scaleZ = physZ / maxPhys
+
+            val model = Matrix4x4.scale(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
+            val bboxMin = Vector3(0f, 0f, 0f)
+            val bboxMax = Vector3(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
+
             val volumeTexture = back.createTexture3D(
                 volume.data,
                 volume.dimensions.width,
                 volume.dimensions.height,
                 volume.dimensions.depth
             )
-            
+
             val transferFunction = currentTransferFunctionState.value
             val tfTexture = back.createTexture1D(transferFunction.toTexture1D(), 256)
-            
+
             renderState = RenderState(
                 volumeTexture = volumeTexture,
-                transferFunctionTexture = tfTexture
+                transferFunctionTexture = tfTexture,
+                modelMatrix = model,
+                bboxMin = bboxMin,
+                bboxMax = bboxMax
             )
+
+            // Center camera on the physical bbox
+            val center = Vector3((bboxMin.x + bboxMax.x) / 2f, (bboxMin.y + bboxMax.y) / 2f, (bboxMin.z + bboxMax.z) / 2f)
+            camera = camera.copy(target = center)
+
             println("✓ Textures created with preset: ${transferFunction.name}")
+            println("  Physical bbox -> min:$bboxMin max:$bboxMax modelScale=($scaleX,$scaleY,$scaleZ)")
         }
         
         // Update transfer function texture if preset changed
@@ -300,10 +330,10 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         if (pixelBuffer == null || pixelBuffer!!.capacity() < bufferSize) {
             pixelBuffer = ByteBuffer.allocateDirect(bufferSize)
         }
-        
+
         pixelBuffer!!.rewind()
         gl.glReadPixels(0, 0, width, height, GL4.GL_RGBA, GL4.GL_UNSIGNED_BYTE, pixelBuffer)
-        
+
         val bytes = ByteArray(bufferSize)
         pixelBuffer!!.get(bytes)
         
