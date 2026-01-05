@@ -2,6 +2,7 @@
 
 // Input from vertex shader
 in vec3 texCoord;
+in vec3 worldPos;
 
 // Output
 out vec4 FragColor;
@@ -76,16 +77,16 @@ void main() {
         return;
     }
     
-    // texCoord is the back face (exit point) of the ray
-    vec3 rayExit = texCoord;
-    
-    // Calculate ray entry point (front face) by tracing from camera
+    // worldPos is the back face (exit point) in world-space
+    vec3 rayExit = worldPos;
+
+    // Calculate ray entry point (front face) by tracing from camera (world-space)
     vec3 rayDir = normalize(rayExit - cameraPosition);
-    
-    // Find where ray enters the volume cube [0,1]^3
+
+    // Find where ray enters the volume defined by bboxMin..bboxMax (world-space)
     vec3 invRayDir = 1.0 / rayDir;
-    vec3 tMin = (vec3(0.0) - cameraPosition) * invRayDir;
-    vec3 tMax = (vec3(1.0) - cameraPosition) * invRayDir;
+    vec3 tMin = (bboxMin - cameraPosition) * invRayDir;
+    vec3 tMax = (bboxMax - cameraPosition) * invRayDir;
     
     vec3 t1 = min(tMin, tMax);
     vec3 t2 = max(tMin, tMax);
@@ -98,9 +99,9 @@ void main() {
         discard;
     }
     
-    // Ray entry point (clamp to volume bounds)
+    // Ray entry point (clamp to world-space volume bounds)
     vec3 rayStart = cameraPosition + rayDir * max(tNear, 0.0);
-    rayStart = clamp(rayStart, vec3(0.0), vec3(1.0));
+    rayStart = clamp(rayStart, bboxMin, bboxMax);
     
     // March from entry to exit
     vec3 position = rayStart;
@@ -113,10 +114,12 @@ void main() {
     if (debugMode == 1) {
         for (int i = 0; i < maxSteps; ++i) {
             if (any(greaterThan(position, rayExit)) || 
-                any(lessThan(position, vec3(0.0)))) {
+                any(lessThan(position, bboxMin))) {
                 break;
             }
-            float density = texture(volumeData, position).r;
+            // Convert world-space position to texture coordinates [0,1]
+            vec3 texPos = (position - bboxMin) / (bboxMax - bboxMin);
+            float density = texture(volumeData, texPos).r;
             if (density > 0.01) {
                 FragColor = vec4(vec3(density), 1.0);
                 return;
@@ -131,13 +134,14 @@ void main() {
     for (int i = 0; i < maxSteps; ++i) {
         // Check if we've reached the exit point or left the volume
         if (distance(position, rayStart) > distance(rayExit, rayStart) ||
-            any(greaterThan(position, vec3(1.0))) || 
-            any(lessThan(position, vec3(0.0)))) {
+            any(greaterThan(position, bboxMax)) || 
+            any(lessThan(position, bboxMin))) {
             break;
         }
         
-        // Sample volume
-        float density = texture(volumeData, position).r;
+        // Sample volume: convert world-space position to texture coordinates
+        vec3 texPos = (position - bboxMin) / (bboxMax - bboxMin);
+        float density = texture(volumeData, texPos).r;
         
         // Transfer function lookup
         vec4 color = texture(transferFunction, density);
@@ -149,8 +153,8 @@ void main() {
         
         // Low threshold to keep details but avoid zero-alpha calculations
         if (color.a > 0.0001) {
-            // Simple gradient-based shading
-            vec3 N = getNormal(position);
+            // Simple gradient-based shading (compute normal in texture space)
+            vec3 N = getNormal(texPos);
             vec3 L = normalize(lightPosition - position);
             
             // Basic diffuse shading

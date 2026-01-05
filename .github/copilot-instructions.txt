@@ -1,0 +1,2 @@
+1. Always document code changes as necessary. Pay special attention to complex logic, algorithms, and any non-obvious decisions made during development. Do not over document trivial code.
+2. Keep in mind that the project is targeted to cross platform implementation, take decisions that ensure compatibility across different operating systems and environments. Follow modular structures.
