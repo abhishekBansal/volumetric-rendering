@@ -65,6 +65,7 @@ fun VolumeViewport(
                     offscreenController.resize(size.width, size.height)
                 }
             }
+            // focus on click handled by AWT dispatcher; keep pointerInput for drag gestures
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     renderer.handleMouseDrag(dragAmount.x, dragAmount.y)

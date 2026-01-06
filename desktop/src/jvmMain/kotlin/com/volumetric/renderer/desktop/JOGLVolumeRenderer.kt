@@ -377,6 +377,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     }
     
     fun handleKeyPress(key: Char) {
+        println("[JOGLVolumeRenderer] Key pressed: $key")
         val speed = 0.1f
         camera = when (key.lowercaseChar()) {
             'w' -> camera.moveForward(speed)
@@ -557,6 +558,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             }
             
             return GLJPanel(capabilities).apply {
+                isFocusable = true
                 addGLEventListener(renderer)
             }
         }
@@ -574,6 +576,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             }
             
             return com.jogamp.opengl.awt.GLCanvas(capabilities).apply {
+                isFocusable = true
                 addGLEventListener(renderer)
             }
         }
