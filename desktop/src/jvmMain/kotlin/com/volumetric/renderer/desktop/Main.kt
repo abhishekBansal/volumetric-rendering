@@ -16,6 +16,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import java.io.File
+import java.awt.KeyboardFocusManager
+import java.awt.KeyEventDispatcher
+import java.awt.event.KeyEvent
 
 import com.volumetric.renderer.desktop.ui.ControlPanel
 
@@ -78,6 +81,22 @@ fun main(args: Array<String>) {
     
     // Create renderer (will be initialized when GLJPanel is created)
     val renderer = JOGLVolumeRenderer(dicomPath)
+
+    // Register a global AWT KeyEventDispatcher to forward keyboard events to the renderer.
+    val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+    val dispatcher = KeyEventDispatcher { e ->
+        if (e.id == KeyEvent.KEY_PRESSED) {
+            when (e.keyCode) {
+                KeyEvent.VK_ESCAPE -> renderer.handleKeyPress('\u001B')
+                else -> {
+                    val ch = e.keyChar
+                    if (ch.code != 0) renderer.handleKeyPress(ch)
+                }
+            }
+        }
+        false // do not consume; allow other handlers to run
+    }
+    kfm.addKeyEventDispatcher(dispatcher)
     
     // Start Compose Desktop application
     application {
