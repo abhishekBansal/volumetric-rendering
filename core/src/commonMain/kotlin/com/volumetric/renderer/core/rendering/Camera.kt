@@ -1,5 +1,6 @@
 package com.volumetric.renderer.core.rendering
 
+import com.volumetric.renderer.core.math.Quaternion
 import com.volumetric.renderer.core.math.Vector3
 
 /**
@@ -48,24 +49,30 @@ data class Camera(
     }
     
     /**
-     * Rotate camera around target (orbit).
+     * Rotate camera around target (orbit) with Quaternions.
+     * Uses quaternions to avoid gimbal lock and allow seamless rotation.
      */
     fun orbit(deltaYaw: Float, deltaPitch: Float): Camera {
-        val toCamera = position - target
-        val distance = toCamera.length()
+        val vectorToCamera = position - target
         
-        // Convert to spherical coordinates
-        val theta = kotlin.math.atan2(toCamera.z, toCamera.x) + deltaYaw
-        val phi = kotlin.math.acos(toCamera.y / distance).coerceIn(0.1f, 3.04f) + deltaPitch
+        // Calculate current basis vectors
+        val forward = (target - position).normalize()
+        val right = (forward cross up).normalize()
         
-        // Convert back to Cartesian
-        val newPosition = target + Vector3(
-            distance * kotlin.math.sin(phi) * kotlin.math.cos(theta),
-            distance * kotlin.math.cos(phi),
-            distance * kotlin.math.sin(phi) * kotlin.math.sin(theta)
+        // 1. Pitch Rotation (Around Local Right)
+        val pitchQuat = Quaternion.fromAxisAngle(right, deltaPitch)
+        var newVector = pitchQuat.rotate(vectorToCamera)
+        var newUp = pitchQuat.rotate(up)
+        
+        // 2. Yaw Rotation (Around World Y for stable horizon)
+        val yawQuat = Quaternion.fromAxisAngle(Vector3.UNIT_Y, deltaYaw)
+        newVector = yawQuat.rotate(newVector)
+        newUp = yawQuat.rotate(newUp)
+        
+        return copy(
+            position = target + newVector,
+            up = newUp.normalize()
         )
-        
-        return copy(position = newPosition)
     }
     
     /**

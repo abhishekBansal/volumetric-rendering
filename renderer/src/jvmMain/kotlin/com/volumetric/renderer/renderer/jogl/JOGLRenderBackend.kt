@@ -160,6 +160,8 @@ class JOGLRenderBackend(private var gl: GL4) : RenderBackend {
         shader.setUniform("cameraPosition", state.cameraPosition)
         shader.setUniform("bboxMin", state.bboxMin)
         shader.setUniform("bboxMax", state.bboxMax)
+        shader.setUniform("sliceMin", state.sliceMin)
+        shader.setUniform("sliceMax", state.sliceMax)
         shader.setUniform("step", state.stepSize)
         shader.setUniform("steps", state.maxSteps)
         shader.setUniform("debugMode", state.debugMode)

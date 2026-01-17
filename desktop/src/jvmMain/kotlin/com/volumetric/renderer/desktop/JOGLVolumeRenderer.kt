@@ -79,6 +79,14 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     var stepSize = mutableStateOf(0.004f)
     var maxSteps = mutableStateOf(512)
     
+    // Slicing State (Normalized 0.0 - 1.0)
+    var sliceXMin = mutableStateOf(0.0f)
+    var sliceXMax = mutableStateOf(1.0f)
+    var sliceYMin = mutableStateOf(0.0f)
+    var sliceYMax = mutableStateOf(1.0f)
+    var sliceZMin = mutableStateOf(0.0f)
+    var sliceZMax = mutableStateOf(1.0f)
+    
     // Viewport size
     private var viewportWidth = 800
     private var viewportHeight = 600
@@ -228,7 +236,9 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             ambientLight = Vector3(ambientLightColor.value.red, ambientLightColor.value.green, ambientLightColor.value.blue),
             lightPosition = lightPosition.value,
             stepSize = stepSize.value,
-            maxSteps = maxSteps.value
+            maxSteps = maxSteps.value,
+            sliceMin = Vector3(sliceXMin.value, sliceYMin.value, sliceZMin.value),
+            sliceMax = Vector3(sliceXMax.value, sliceYMax.value, sliceZMax.value)
         )
         
         // Render
@@ -314,6 +324,19 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
                 debugMode = (debugMode + 1) % 3
                 println("Debug mode: $debugMode (0=normal, 1=density, 2=coords)")
             }
+            // Slicing Keyboard Controls (1/2 for X, 3/4 for Y, 5/6 for Z)
+            '1' -> sliceXMin.value = (sliceXMin.value - 0.05f).coerceIn(0f, sliceXMax.value)
+            '!' -> sliceXMin.value = (sliceXMin.value + 0.05f).coerceIn(0f, sliceXMax.value)
+            '2' -> sliceXMax.value = (sliceXMax.value - 0.05f).coerceIn(sliceXMin.value, 1f)
+            '@' -> sliceXMax.value = (sliceXMax.value + 0.05f).coerceIn(sliceXMin.value, 1f)
+            '3' -> sliceYMin.value = (sliceYMin.value - 0.05f).coerceIn(0f, sliceYMax.value)
+            '#' -> sliceYMin.value = (sliceYMin.value + 0.05f).coerceIn(0f, sliceYMax.value)
+            '4' -> sliceYMax.value = (sliceYMax.value - 0.05f).coerceIn(sliceYMin.value, 1f)
+            '$' -> sliceYMax.value = (sliceYMax.value + 0.05f).coerceIn(sliceYMin.value, 1f)
+            '5' -> sliceZMin.value = (sliceZMin.value - 0.05f).coerceIn(0f, sliceZMax.value)
+            '%' -> sliceZMin.value = (sliceZMin.value + 0.05f).coerceIn(0f, sliceZMax.value)
+            '6' -> sliceZMax.value = (sliceZMax.value - 0.05f).coerceIn(sliceZMin.value, 1f)
+            '^' -> sliceZMax.value = (sliceZMax.value + 0.05f).coerceIn(sliceZMin.value, 1f)
             else -> camera = CameraInputHandler.handleKeyMovement(camera, key)
         }
     }

@@ -76,20 +76,6 @@ kotlin-volumetric-renderer/
 | **P** | Cycle Transfer Function Presets |
 | **G** | Toggle Debug Modes (Normal -> Density -> Coords) |
 
-## 📅 Development Status
-
-- **Phase 1: Desktop Implementation** (✅ Complete)
-  - [x] Core Math & Rendering Architecture
-  - [x] JOGL Integration & Offscreen Rendering
-  - [x] DICOM/NIfTI Data Loading
-  - [x] Transfer Function Editor (UI & Logic)
-  - [x] Material & Lighting Controls
-  
-- **Phase 2: Mobile Implementation** (🚧 Planned)
-  - [ ] Android Project Setup
-  - [ ] OpenGL ES 3.0 Migration
-  - [ ] Touch Controls
-
 ## 📄 License
 
 MIT License

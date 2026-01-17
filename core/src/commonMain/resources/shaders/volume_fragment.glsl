@@ -39,6 +39,10 @@ uniform float step;
 uniform int steps;
 uniform int debugMode; // 0=normal, 1=show density, 2=show coords
 
+// Slicing parameters (normalized 0.0 to 1.0)
+uniform vec3 sliceMin;
+uniform vec3 sliceMax;
+
 // Calculate gradient for normals using central differences
 vec3 getNormal(vec3 pos) {
     vec3 sampleOffset = vec3(0.01);
@@ -83,10 +87,15 @@ void main() {
     // Calculate ray entry point (front face) by tracing from camera (world-space)
     vec3 rayDir = normalize(rayExit - cameraPosition);
 
-    // Find where ray enters the volume defined by bboxMin..bboxMax (world-space)
+    // Calculate actual slicing bounds in world space
+    vec3 volumeSize = bboxMax - bboxMin;
+    vec3 actualSliceMin = bboxMin + volumeSize * sliceMin;
+    vec3 actualSliceMax = bboxMin + volumeSize * sliceMax;
+
+    // Find where ray enters the volume defined by SPLICED BOUNDS (world-space)
     vec3 invRayDir = 1.0 / rayDir;
-    vec3 tMin = (bboxMin - cameraPosition) * invRayDir;
-    vec3 tMax = (bboxMax - cameraPosition) * invRayDir;
+    vec3 tMin = (actualSliceMin - cameraPosition) * invRayDir;
+    vec3 tMax = (actualSliceMax - cameraPosition) * invRayDir;
     
     vec3 t1 = min(tMin, tMax);
     vec3 t2 = max(tMin, tMax);
@@ -94,15 +103,19 @@ void main() {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     
-    // If ray misses the volume, discard
+    // If ray misses the SPLICED volume, discard
     if (tNear > tFar || tFar < 0.0) {
         discard;
     }
     
-    // Ray entry point (clamp to world-space volume bounds)
+    // Ray entry point
     vec3 rayStart = cameraPosition + rayDir * max(tNear, 0.0);
-    rayStart = clamp(rayStart, bboxMin, bboxMax);
+    rayStart = clamp(rayStart, actualSliceMin, actualSliceMax);
     
+    // Ray exit point (limit marching to the sliced bounds)
+    vec3 effectiveRayExit = cameraPosition + rayDir * tFar;
+    effectiveRayExit = clamp(effectiveRayExit, actualSliceMin, actualSliceMax);
+
     // March from entry to exit
     vec3 position = rayStart;
     vec4 finalColor = vec4(0.0);
@@ -113,11 +126,14 @@ void main() {
     // Debug mode: show first hit density
     if (debugMode == 1) {
         for (int i = 0; i < maxSteps; ++i) {
-            if (any(greaterThan(position, rayExit)) || 
-                any(lessThan(position, bboxMin))) {
+            // Check against effective exit point and sliced bounds
+            if (distance(position, rayStart) > distance(effectiveRayExit, rayStart) ||
+                any(greaterThan(position, actualSliceMax)) || 
+                any(lessThan(position, actualSliceMin))) {
                 break;
             }
             // Convert world-space position to texture coordinates [0,1]
+            // Note: Texture coordinates are still relative to the FULL volume bounds (bboxMin/Max)
             vec3 texPos = (position - bboxMin) / (bboxMax - bboxMin);
             float density = texture(volumeData, texPos).r;
             if (density > 0.01) {
@@ -133,9 +149,9 @@ void main() {
     // Main ray marching loop - accumulate volume samples
     for (int i = 0; i < maxSteps; ++i) {
         // Check if we've reached the exit point or left the volume
-        if (distance(position, rayStart) > distance(rayExit, rayStart) ||
-            any(greaterThan(position, bboxMax)) || 
-            any(lessThan(position, bboxMin))) {
+        if (distance(position, rayStart) > distance(effectiveRayExit, rayStart) ||
+            any(greaterThan(position, actualSliceMax)) || 
+            any(lessThan(position, actualSliceMin))) {
             break;
         }
         

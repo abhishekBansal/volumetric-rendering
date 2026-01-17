@@ -91,6 +91,8 @@ data class RenderState(
     val maxSteps: Int = 1000,
     val bboxMin: Vector3 = Vector3.ZERO,
     val bboxMax: Vector3 = Vector3.ONE,
+    val sliceMin: Vector3 = Vector3.ZERO,
+    val sliceMax: Vector3 = Vector3.ONE,
     val debugMode: Int = 0  // 0=normal, 1=density, 2=coords
 )
 
