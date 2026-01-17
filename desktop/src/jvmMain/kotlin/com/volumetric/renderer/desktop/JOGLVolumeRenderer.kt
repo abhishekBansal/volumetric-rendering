@@ -24,6 +24,9 @@ import com.volumetric.renderer.renderer.jogl.JOGLRenderBackend
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import kotlin.math.PI
 
@@ -42,7 +45,11 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     private var volumeData: VolumeData? = null
     private var renderState: RenderState? = null
     private var lastFrameTime = System.nanoTime()
-    @Volatile private var isLoadingData = false  // Prevent multiple concurrent loads
+    
+    // Loading state management
+    private val _loadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
+    val loadingState: StateFlow<LoadingState> = _loadingState.asStateFlow()
+    
     var fps = 0
         private set
     
@@ -56,14 +63,14 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     var volumeDataState = mutableStateOf<VolumeData?>(null)
     
     // Material State
-    var materialAmbient = mutableStateOf(0.3f)
-    var materialDiffuse = mutableStateOf(0.6f)
+    var materialAmbient = mutableStateOf(0.6f) // Increased from 0.3 for visibility
+    var materialDiffuse = mutableStateOf(0.8f)
     var materialSpecular = mutableStateOf(0.8f)
     var materialShininess = mutableStateOf(32f)
     
     // Lighting State
     var lightColor = mutableStateOf(androidx.compose.ui.graphics.Color.White)
-    var ambientLightColor = mutableStateOf(androidx.compose.ui.graphics.Color(0.2f, 0.2f, 0.2f))
+    var ambientLightColor = mutableStateOf(androidx.compose.ui.graphics.Color(0.6f, 0.6f, 0.6f)) // Brighter ambient
     var lightPosition = mutableStateOf(Vector3(2f, 2f, 2f))
     
     // Rendering Quality
@@ -73,6 +80,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     // Viewport size
     private var viewportWidth = 800
     private var viewportHeight = 600
+    private var frameCount = 0L
     
     // Transfer function presets
     private var currentPresetIndex = 0
@@ -197,7 +205,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             val file = File(initialDicomPath)
             if (file.exists()) {
                 println("[JOGLVolumeRenderer] Loading medical data from: $initialDicomPath")
-                loadMedicalData(file)
+                loadDataset(file)
             } else {
                 println("[JOGLVolumeRenderer] ⚠️ Path not found: $initialDicomPath")
                 createTestVolume()
@@ -210,6 +218,10 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     }
     
     override fun display(drawable: GLAutoDrawable) {
+        if (frameCount == 0L) {
+            println("[display] ⚠️ FIRST display() call - GL rendering starting")
+        }
+        
         val gl = drawable.gl.gL4
         backend?.updateGL(gl)
         
@@ -222,12 +234,14 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         
         if (volume == null || back == null) {
             // Still loading - purple background shows GL is working
+            println("[display] No volume data or backend - showing purple background")
             return
         }
         
         // Create textures if needed
         if (renderState == null) {
-            println("[display] Creating textures...")
+            println("[display] Creating textures for volume: ${volume.name}")
+            println("[display] Volume dimensions: ${volume.dimensions.width}x${volume.dimensions.height}x${volume.dimensions.depth}")
 
             // Derive physical spacing from metadata (defaults to 1.0 if missing)
             val meta = volume.metadata
@@ -271,16 +285,22 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             val center = Vector3((bboxMin.x + bboxMax.x) / 2f, (bboxMin.y + bboxMax.y) / 2f, (bboxMin.z + bboxMax.z) / 2f)
             camera = camera.copy(target = center)
 
-            println("✓ Textures created with preset: ${transferFunction.name}")
-            println("  Physical bbox -> min:$bboxMin max:$bboxMax modelScale=($scaleX,$scaleY,$scaleZ)")
+            println("[display] ✅ Textures created successfully")
+            println("[display]   Volume texture ID: $volumeTexture")
+            println("[display]   Transfer function: ${transferFunction.name}")
+            println("[display]   Physical bbox -> min:$bboxMin max:$bboxMax")
+            println("[display]   Model scale: ($scaleX, $scaleY, $scaleZ)")
+            println("[display]   Camera reset to: pos=${camera.position}, target=${camera.target}")
         }
         
         // Update transfer function texture if preset changed
         if (needsTextureUpdate) {
+            println("[display] Updating transfer function texture...")
             val transferFunction = currentTransferFunctionState.value
             val tfTexture = back.createTexture1D(transferFunction.toTexture1D(), 256)
             renderState = renderState?.copy(transferFunctionTexture = tfTexture)
             needsTextureUpdate = false
+            println("[display] ✅ Transfer function updated to: ${transferFunction.name}")
         }
         
         // Update matrices
@@ -311,10 +331,13 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         
         // Render
         back.setViewport(0, 0, viewportWidth, viewportHeight)
-        back.clear(0.1f, 0.1f, 0.15f, 1f)
-        renderState?.let { back.render(it) }
+        back.clear(0.1f, 0.1f, 0.15f, 1.0f) // Dark background
+        renderState?.let { state ->
+            back.render(state)
+        } ?: println("[display] WARNING: renderState is null, skipping render")
         
         // Calculate FPS
+        frameCount++
         val currentTime = System.nanoTime()
         val deltaTime = (currentTime - lastFrameTime) / 1_000_000_000.0
         fps = (1.0 / deltaTime).toInt()
@@ -329,6 +352,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         val bufferSize = width * height * 4
         if (pixelBuffer == null || pixelBuffer!!.capacity() < bufferSize) {
             pixelBuffer = ByteBuffer.allocateDirect(bufferSize)
+            println("[readPixels] Allocated new pixel buffer: ${width}x${height} = $bufferSize bytes")
         }
 
         pixelBuffer!!.rewind()
@@ -338,11 +362,15 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         pixelBuffer!!.get(bytes)
         
         val bitmap = Bitmap()
-        val imageInfo = ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.PREMUL)
+        val imageInfo = ImageInfo(width, height, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL)
         bitmap.allocPixels(imageInfo)
         bitmap.installPixels(bytes)
         
         offscreenImage.value = bitmap.asComposeImageBitmap()
+        
+        if (frameCount == 1L) {
+            println("[readPixels] ✅ First frame bitmap created and set to offscreenImage")
+        }
     }
     
     override fun reshape(drawable: GLAutoDrawable, x: Int, y: Int, width: Int, height: Int) {
@@ -482,59 +510,119 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
         onStateChanged?.invoke()
     }
     
-    private fun loadMedicalData(file: File) {
+    /**
+     * Load a medical dataset from a file or directory.
+     * Supports DICOM (.dcm), NIfTI (.nii, .nii.gz), and DICOM series (directories).
+     * 
+     * @param file File or directory to load
+     * @param onSuccess Optional callback invoked on successful load
+     * @param onError Optional callback invoked on error with error message
+     */
+    fun loadDataset(
+        file: File,
+        onSuccess: ((VolumeData) -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        println("[JOGLVolumeRenderer] loadDataset called with: ${file.absolutePath}")
+        println("[JOGLVolumeRenderer] File exists: ${file.exists()}, isFile: ${file.isFile}, isDirectory: ${file.isDirectory}")
+        
         // Prevent multiple concurrent loads
-        if (isLoadingData) {
-            println("[JOGLVolumeRenderer] Load already in progress, skipping...")
+        if (_loadingState.value is LoadingState.Loading) {
+            println("[JOGLVolumeRenderer] ⚠️ Load already in progress, skipping...")
+            onError?.invoke("Another dataset is currently loading")
             return
         }
-        isLoadingData = true
         
+        // Validate file exists
+        if (!file.exists()) {
+            val error = "File or directory does not exist: ${file.absolutePath}"
+            println("[JOGLVolumeRenderer] ❌ $error")
+            _loadingState.value = LoadingState.Error(error)
+            onError?.invoke(error)
+            return
+        }
+        
+        println("[JOGLVolumeRenderer] Setting loading state...")
+        _loadingState.value = LoadingState.Loading(0f, "Preparing to load...")
+        
+        println("[JOGLVolumeRenderer] Launching coroutine for data loading...")
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 println("\n=== Loading medical imaging data from: ${file.absolutePath} ===")
                 
                 val volume = when {
                     file.name.endsWith(".nii") || file.name.endsWith(".nii.gz") -> {
-                        NiftiLoader.loadNiftiFile(file.absolutePath)
+                        _loadingState.value = LoadingState.Loading(0.1f, "Loading NIfTI file...")
+                        val result = NiftiLoader.loadNiftiFile(file.absolutePath)
+                        if (result == null) {
+                            throw Exception("Failed to load NIfTI file: ${file.name}")
+                        }
+                        result
                     }
                     file.isDirectory -> {
+                        _loadingState.value = LoadingState.Loading(0.1f, "Scanning DICOM directory...")
                         val result = DicomLoader.loadDicomSeries(file.absolutePath) { progress ->
-                            println("Loading progress: ${(progress * 100).toInt()}%")
+                            val message = "Loading DICOM series (${(progress * 100).toInt()}%)..."
+                            _loadingState.value = LoadingState.Loading(progress, message)
+                            println(message)
                         }
-                        result.getOrNull()?.first
+                        
+                        result.getOrNull()?.first ?: throw result.exceptionOrNull() 
+                            ?: Exception("Failed to load DICOM series from: ${file.name}")
                     }
                     else -> {
-                        val result = DicomLoader.loadSingleDicom(file.absolutePath)
-                        result.getOrNull()?.first
+                        // Check if this file is part of a series in the same folder
+                        val parentDir = file.parentFile
+                        val siblingDicoms = parentDir?.listFiles { f -> 
+                            f.extension.equals("dcm", ignoreCase = true) || f.extension.all { it.isDigit() }
+                        }?.toList() ?: emptyList()
+                        
+                        if (siblingDicoms.size > 1) {
+                            println("[JOGLVolumeRenderer] Detected multiple DICOM files in parent directory. Loading as series.")
+                            _loadingState.value = LoadingState.Loading(0.1f, "Scanning DICOM series...")
+                            val result = DicomLoader.loadDicomSeries(parentDir!!.absolutePath) { progress ->
+                                val message = "Loading DICOM series (${(progress * 100).toInt()}%)..."
+                                _loadingState.value = LoadingState.Loading(progress, message)
+                                println(message)
+                            }
+                            result.getOrNull()?.first ?: throw result.exceptionOrNull() 
+                                ?: Exception("Failed to load DICOM series from: ${parentDir.name}")
+                        } else {
+                            _loadingState.value = LoadingState.Loading(0.1f, "Loading DICOM file...")
+                            val result = DicomLoader.loadSingleDicom(file.absolutePath)
+                            result.getOrNull()?.first ?: throw result.exceptionOrNull() 
+                                ?: Exception("Failed to load DICOM file: ${file.name}")
+                        }
                     }
                 }
                 
-                if (volume != null) {
-                    println("\n✓ Volume loaded successfully!")
-                    println("  Dimensions: ${volume.dimensions.width}x${volume.dimensions.height}x${volume.dimensions.depth}")
-                    
-                    volumeData = volume
-                    volumeDataState.value = volume
-                    renderState = null
-                    needsTextureUpdate = false
-                    
-                    // Reset camera
-                    camera = Camera(
-                        position = Vector3(2f, 2f, 3f),
-                        target = Vector3(0.5f, 0.5f, 0.5f)
-                    )
-                    
-                    println("✓ Volume loaded and ready to render")
-                    onStateChanged?.invoke()
-                } else {
-                    println("✗ Failed to load volume data")
-                }
+                println("\n✓ Volume loaded successfully!")
+                println("  Dimensions: ${volume.dimensions.width}x${volume.dimensions.height}x${volume.dimensions.depth}")
+                
+                // Update volume data and reset render state on main thread
+                volumeData = volume
+                volumeDataState.value = volume
+                renderState = null  // Force texture recreation on next frame
+                needsTextureUpdate = false
+                
+                // Reset camera
+                camera = Camera(
+                    position = Vector3(2f, 2f, 3f),
+                    target = Vector3(0.5f, 0.5f, 0.5f)
+                )
+                
+                _loadingState.value = LoadingState.Success
+                println("[JOGLVolumeRenderer] ✅ Volume loaded successfully and ready to render")
+                println("[JOGLVolumeRenderer] Render state reset - will recreate textures on next frame")
+                onStateChanged?.invoke()
+                onSuccess?.invoke(volume)
+                
             } catch (e: Exception) {
-                println("✗ Error loading data: ${e.message}")
+                val errorMsg = e.message ?: "Unknown error occurred while loading dataset"
+                println("✗ Error loading data: $errorMsg")
                 e.printStackTrace()
-            } finally {
-                isLoadingData = false
+                _loadingState.value = LoadingState.Error(errorMsg, e)
+                onError?.invoke(errorMsg)
             }
         }
     }

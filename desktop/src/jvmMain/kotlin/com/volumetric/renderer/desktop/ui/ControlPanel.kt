@@ -3,6 +3,8 @@ package com.volumetric.renderer.desktop.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -42,6 +44,9 @@ fun ControlPanel(
     onStepSizeChange: (Float) -> Unit,
     maxSteps: Int,
     onMaxStepsChange: (Int) -> Unit,
+    onLoadDatasetClicked: (() -> Unit)? = null,
+    errorMessage: String? = null,
+    onDismissError: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val histogram = remember(volumeData) {
@@ -71,6 +76,21 @@ fun ControlPanel(
             )
             
             Divider()
+            
+            // Load Dataset Button
+            if (onLoadDatasetClicked != null) {
+                Button(
+                    onClick = onLoadDatasetClicked,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.FolderOpen, contentDescription = "Load Dataset")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Load Dataset")
+                }
+            }
             
             // Preset Selector
             Card(
@@ -262,11 +282,26 @@ fun ControlPanel(
                     KeyboardShortcut("Mouse Drag", "Rotate view")
                     KeyboardShortcut("Scroll", "Zoom in/out")
                     KeyboardShortcut("P", "Cycle presets")
+                    KeyboardShortcut("O", "Open file picker")
                     KeyboardShortcut("D", "Debug mode")
                     KeyboardShortcut("ESC", "Exit")
                 }
             }
         }
+    }
+    
+    // Error Dialog
+    if (errorMessage != null && onDismissError != null) {
+        AlertDialog(
+            onDismissRequest = onDismissError,
+            title = { Text("Error Loading Dataset") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                TextButton(onClick = onDismissError) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 

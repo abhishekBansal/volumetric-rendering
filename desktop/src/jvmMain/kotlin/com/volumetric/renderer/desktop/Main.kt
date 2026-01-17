@@ -15,12 +15,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.onExternalDrag
+import androidx.compose.ui.DragData
 import java.io.File
 import java.awt.KeyboardFocusManager
 import java.awt.KeyEventDispatcher
 import java.awt.event.KeyEvent
 
 import com.volumetric.renderer.desktop.ui.ControlPanel
+import com.volumetric.renderer.desktop.ui.FilePickerDialog
 
 fun main(args: Array<String>) {
     println("=== VOLUMETRIC RENDERER WITH JOGL + COMPOSE DESKTOP ===")
@@ -81,20 +85,34 @@ fun main(args: Array<String>) {
     
     // Create renderer (will be initialized when GLJPanel is created)
     val renderer = JOGLVolumeRenderer(dicomPath)
+    
+    // Shared state for file picker trigger (accessible from both AWT and Compose)
+    val filePickerTrigger = mutableStateOf(0)
 
     // Register a global AWT KeyEventDispatcher to forward keyboard events to the renderer.
     val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+    
     val dispatcher = KeyEventDispatcher { e ->
         if (e.id == KeyEvent.KEY_PRESSED) {
             when (e.keyCode) {
-                KeyEvent.VK_ESCAPE -> renderer.handleKeyPress('\u001B')
+                KeyEvent.VK_ESCAPE -> {
+                    renderer.handleKeyPress('\u001B')
+                    false
+                }
+                KeyEvent.VK_O -> {
+                    // Increment to trigger file picker in Compose
+                    filePickerTrigger.value++
+                    false
+                }
                 else -> {
                     val ch = e.keyChar
                     if (ch.code != 0) renderer.handleKeyPress(ch)
+                    false
                 }
             }
+        } else {
+            false // do not consume; allow other handlers to run
         }
-        false // do not consume; allow other handlers to run
     }
     kfm.addKeyEventDispatcher(dispatcher)
     
@@ -113,51 +131,171 @@ fun main(args: Array<String>) {
                     background = Color(0xFF121212)
                 )
             ) {
-                App(renderer)
+                App(renderer, filePickerTrigger)
             }
         }
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun App(renderer: JOGLVolumeRenderer) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Control Panel (left side)
-        ControlPanel(
-            volumeData = renderer.volumeDataState.value,
-            transferFunction = renderer.currentTransferFunctionState.value,
-            presets = renderer.getTransferFunctionPresets(),
-            onTransferFunctionChange = { renderer.setTransferFunction(it) },
-            materialAmbient = renderer.materialAmbient.value,
-            onMaterialAmbientChange = { renderer.materialAmbient.value = it },
-            materialDiffuse = renderer.materialDiffuse.value,
-            onMaterialDiffuseChange = { renderer.materialDiffuse.value = it },
-            materialSpecular = renderer.materialSpecular.value,
-            onMaterialSpecularChange = { renderer.materialSpecular.value = it },
-            materialShininess = renderer.materialShininess.value,
-            onMaterialShininessChange = { renderer.materialShininess.value = it },
-            lightColor = renderer.lightColor.value,
-            onLightColorChange = { renderer.lightColor.value = it },
-            ambientLightColor = renderer.ambientLightColor.value,
-            onAmbientLightColorChange = { renderer.ambientLightColor.value = it },
-            lightPosition = renderer.lightPosition.value,
-            onLightPositionChange = { renderer.lightPosition.value = it },
-            stepSize = renderer.stepSize.value,
-            onStepSizeChange = { renderer.stepSize.value = it },
-            maxSteps = renderer.maxSteps.value,
-            onMaxStepsChange = { renderer.maxSteps.value = it },
+fun App(renderer: JOGLVolumeRenderer, filePickerTrigger: MutableState<Int>) {
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var triggerLoadFile by remember { mutableStateOf<File?>(null) }
+    var isDragging by remember { mutableStateOf(false) } // Track dragging state
+    
+    println("[App] Composable recomposed, trigger value: ${filePickerTrigger.value}")
+    
+    // Watch for keyboard 'O' trigger or Load Dataset button click
+    LaunchedEffect(filePickerTrigger.value) {
+        if (filePickerTrigger.value > 0) {
+            println("[App] 🔑 File picker triggered (count: ${filePickerTrigger.value})")
+            println("[App] 📂 Opening file picker dialog...")
+            
+            val file = FilePickerDialog.showOpenDialog()
+            
+            if (file != null) {
+                println("[App] 📁 File selected: ${file.absolutePath}")
+                println("[App] 📁 File exists: ${file.exists()}, isFile: ${file.isFile}, isDirectory: ${file.isDirectory}")
+                
+                // Validate file
+                val (isValid, validationError) = FilePickerDialog.validateDatasetFile(file)
+                println("[App] Validation result - isValid: $isValid, error: $validationError")
+                
+                if (isValid) {
+                    println("[App] ✅ File validated, triggering load...")
+                    triggerLoadFile = file
+                } else {
+                    println("[App] ❌ File validation failed: $validationError")
+                    errorMessage = validationError
+                }
+            } else {
+                println("[App] 📂 File picker cancelled by user")
+            }
+        }
+    }
+    
+    // Handle file loading
+    LaunchedEffect(triggerLoadFile) {
+        val file = triggerLoadFile
+        if (file != null) {
+            println("[App] 🚀 Starting dataset load for: ${file.absolutePath}")
+            renderer.loadDataset(
+                file = file,
+                onSuccess = { volumeData ->
+                    println("[App] ✅ Dataset loaded successfully: ${volumeData.name}")
+                    errorMessage = null
+                    triggerLoadFile = null
+                },
+                onError = { error ->
+                    println("[App] ❌ Dataset loading failed: $error")
+                    errorMessage = error
+                    triggerLoadFile = null
+                }
+            )
+        }
+    }
+    
+    // Handle Load Dataset button click
+    val onLoadDatasetClick: () -> Unit = {
+        println("[App] 🖱️ Load Dataset button clicked")
+        filePickerTrigger.value++
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        Row(
             modifier = Modifier
-                .width(400.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colors.surface)
-        )
-        
-        // Render viewport (right side) - uses SwingPanel with GLJPanel
-        VolumeViewport(
-            renderer = renderer,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        )
+                .fillMaxSize()
+                .onExternalDrag(
+                    onDragStart = { isDragging = true },
+                    onDragExit = { isDragging = false },
+                    onDrop = { state ->
+                        isDragging = false
+                        val data = state.dragData
+                        if (data is DragData.FilesList) {
+                            val path = data.readFiles().firstOrNull() ?: return@onExternalDrag
+                            println("[App] 📦 Drag raw path: '$path'")
+                            
+                            val file = try {
+                                if (path.startsWith("file:")) {
+                                    File(java.net.URI(path))
+                                } else {
+                                    File(path)
+                                }
+                            } catch (e: Exception) {
+                                println("[App] ⚠️ Error parsing drag path '$path': ${e.message}")
+                                // Try simplified path as fallback
+                                val cleanPath = path.removePrefix("file://").removePrefix("file:")
+                                File(cleanPath)
+                            }
+                            
+                            println("[App] 📦 Native Drop (Resolved): ${file.absolutePath}")
+                            val (isValid, error) = FilePickerDialog.validateDatasetFile(file)
+                            if (isValid) {
+                                triggerLoadFile = file
+                            } else {
+                                errorMessage = error
+                            }
+                        }
+                    }
+                )
+        ) {
+            // Control Panel (left side)
+            ControlPanel(
+                volumeData = renderer.volumeDataState.value,
+                transferFunction = renderer.currentTransferFunctionState.value,
+                presets = renderer.getTransferFunctionPresets(),
+                onTransferFunctionChange = { renderer.setTransferFunction(it) },
+                materialAmbient = renderer.materialAmbient.value,
+                onMaterialAmbientChange = { renderer.materialAmbient.value = it },
+                materialDiffuse = renderer.materialDiffuse.value,
+                onMaterialDiffuseChange = { renderer.materialDiffuse.value = it },
+                materialSpecular = renderer.materialSpecular.value,
+                onMaterialSpecularChange = { renderer.materialSpecular.value = it },
+                materialShininess = renderer.materialShininess.value,
+                onMaterialShininessChange = { renderer.materialShininess.value = it },
+                lightColor = renderer.lightColor.value,
+                onLightColorChange = { renderer.lightColor.value = it },
+                ambientLightColor = renderer.ambientLightColor.value,
+                onAmbientLightColorChange = { renderer.ambientLightColor.value = it },
+                lightPosition = renderer.lightPosition.value,
+                onLightPositionChange = { renderer.lightPosition.value = it },
+                stepSize = renderer.stepSize.value,
+                onStepSizeChange = { renderer.stepSize.value = it },
+                maxSteps = renderer.maxSteps.value,
+                onMaxStepsChange = { renderer.maxSteps.value = it },
+                onLoadDatasetClicked = onLoadDatasetClick,
+                errorMessage = errorMessage,
+                onDismissError = { errorMessage = null },
+                modifier = Modifier
+                    .width(400.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colors.surface)
+            )
+            
+            // Render viewport (right side) - uses SwingPanel with GLJPanel
+            VolumeViewport(
+                renderer = renderer,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+
+        // Drag Overlay
+        if (isDragging) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Text(
+                    "Drop Volume Data Here",
+                    color = Color.White,
+                    style = MaterialTheme.typography.h4
+                )
+            }
+        }
     }
 }
