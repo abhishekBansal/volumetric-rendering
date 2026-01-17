@@ -18,7 +18,7 @@ import com.volumetric.renderer.core.io.DicomLoader
 import com.volumetric.renderer.core.io.NiftiLoader
 import com.volumetric.renderer.core.math.Matrix4x4
 import com.volumetric.renderer.core.math.Vector3
-import com.volumetric.renderer.desktop.data.PresetRepository
+import com.volumetric.renderer.core.data.PresetRepository
 import com.volumetric.renderer.desktop.input.CameraInputHandler
 import com.volumetric.renderer.core.rendering.Camera
 import com.volumetric.renderer.core.rendering.RenderState
