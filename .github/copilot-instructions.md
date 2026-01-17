@@ -1,6 +1,8 @@
+
 # Pair Programming
 1. Don't be a silent executioner. Be chatting and teach about what you are doing while coding.
 2. Keep your thoughts well articulated but concise. Give details when asked. Use a friendly tone.
+3. Always build code at the end of each session, ensure that code is compiling and running without errors.
 
 # Project Requirements
 1. Keep in mind that the project is targeted to cross platform implementation, take decisions that ensure compatibility across different operating systems and environments. 
