@@ -44,6 +44,14 @@ fun ControlPanel(
     onStepSizeChange: (Float) -> Unit,
     maxSteps: Int,
     onMaxStepsChange: (Int) -> Unit,
+    // Slicing State
+    sliceXRange: ClosedFloatingPointRange<Float>,
+    onSliceXRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
+    sliceYRange: ClosedFloatingPointRange<Float>,
+    onSliceYRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
+    sliceZRange: ClosedFloatingPointRange<Float>,
+    onSliceZRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
+    
     onLoadDatasetClicked: (() -> Unit)? = null,
     errorMessage: String? = null,
     onDismissError: (() -> Unit)? = null,
@@ -220,6 +228,41 @@ fun ControlPanel(
                 }
             }
 
+            // Slicing Planes
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Slicing Planes",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Text("X Axis: ${"%.2f".format(sliceXRange.start)} - ${"%.2f".format(sliceXRange.endInclusive)}")
+                    RangeSlider(
+                        value = sliceXRange,
+                        onValueChange = onSliceXRangeChange,
+                        valueRange = 0f..1f
+                    )
+                    
+                    Text("Y Axis: ${"%.2f".format(sliceYRange.start)} - ${"%.2f".format(sliceYRange.endInclusive)}")
+                    RangeSlider(
+                        value = sliceYRange,
+                        onValueChange = onSliceYRangeChange,
+                        valueRange = 0f..1f
+                    )
+                    
+                    Text("Z Axis: ${"%.2f".format(sliceZRange.start)} - ${"%.2f".format(sliceZRange.endInclusive)}")
+                    RangeSlider(
+                        value = sliceZRange,
+                        onValueChange = onSliceZRangeChange,
+                        valueRange = 0f..1f
+                    )
+                }
+            }
+            
             // Rendering Settings
             Card(
                 modifier = Modifier.fillMaxWidth(),

@@ -264,6 +264,22 @@ fun App(renderer: JOGLVolumeRenderer, filePickerTrigger: MutableState<Int>) {
                 onStepSizeChange = { renderer.stepSize.value = it },
                 maxSteps = renderer.maxSteps.value,
                 onMaxStepsChange = { renderer.maxSteps.value = it },
+                // Slicing State
+                sliceXRange = renderer.sliceXMin.value..renderer.sliceXMax.value,
+                onSliceXRangeChange = { range ->
+                    renderer.sliceXMin.value = range.start
+                    renderer.sliceXMax.value = range.endInclusive
+                },
+                sliceYRange = renderer.sliceYMin.value..renderer.sliceYMax.value,
+                onSliceYRangeChange = { range ->
+                    renderer.sliceYMin.value = range.start
+                    renderer.sliceYMax.value = range.endInclusive
+                },
+                sliceZRange = renderer.sliceZMin.value..renderer.sliceZMax.value,
+                onSliceZRangeChange = { range ->
+                    renderer.sliceZMin.value = range.start
+                    renderer.sliceZMax.value = range.endInclusive
+                },
                 onLoadDatasetClicked = onLoadDatasetClick,
                 errorMessage = errorMessage,
                 onDismissError = { errorMessage = null },
