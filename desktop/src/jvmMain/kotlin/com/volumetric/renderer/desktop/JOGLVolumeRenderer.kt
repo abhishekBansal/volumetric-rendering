@@ -18,6 +18,8 @@ import com.volumetric.renderer.core.io.DicomLoader
 import com.volumetric.renderer.core.io.NiftiLoader
 import com.volumetric.renderer.core.math.Matrix4x4
 import com.volumetric.renderer.core.math.Vector3
+import com.volumetric.renderer.desktop.data.PresetRepository
+import com.volumetric.renderer.desktop.input.CameraInputHandler
 import com.volumetric.renderer.core.rendering.Camera
 import com.volumetric.renderer.core.rendering.RenderState
 import com.volumetric.renderer.renderer.jogl.JOGLRenderBackend
@@ -85,107 +87,7 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     // Transfer function presets
     private var currentPresetIndex = 0
     private var debugMode = 0  // 0=normal, 1=density, 2=coords
-    private val transferFunctionPresets = listOf(
-        // CT Anatomy (Based on user analysis)
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0.0f, 0.79f, 0.88f, 0.82f, 0.0f),      // -770 HU (Air)
-                GradientStop(0.2f, 1.0f, 0.78f, 0.7f, 0.0f),        // -144 HU (Lung)
-                GradientStop(0.26f, 0.73f, 0.0f, 0.03f, 0.0f),      // 62 HU (Blood)
-                GradientStop(0.27f, 0.81f, 0.04f, 0.07f, 0.0f),     // 90 HU (Opacity Start)
-                GradientStop(0.29f, 1.0f, 0.14f, 0.17f, 0.07f),     // 158 HU (Soft Tissue)
-                GradientStop(0.30f, 1.0f, 0.35f, 0.17f, 0.12f),     // 210 HU (Muscle)
-                GradientStop(0.31f, 1.0f, 0.46f, 0.15f, 0.14f),     // 228 HU (Soft Tissue 2)
-                GradientStop(0.32f, 1.0f, 0.64f, 0.11f, 0.21f),     // 259 HU (Dense Tissue)
-                GradientStop(0.33f, 0.98f, 0.73f, 0.32f, 0.39f),    // 330 HU (Bone Start)
-                GradientStop(0.37f, 0.94f, 0.92f, 0.73f, 0.83f),    // 466 HU (Bone Marrow)
-                GradientStop(0.38f, 0.94f, 0.92f, 0.73f, 0.94f),    // 499 HU (Bone)
-                GradientStop(0.75f, 1.0f, 1.0f, 1.0f, 0.94f),       // 2001 HU (Cortical Bone)
-                GradientStop(1.0f, 1.0f, 0.96f, 0.99f, 1.0f)        // 3071 HU (Dense Bone)
-            ),
-            name = "CT Anatomy"
-        ),
-        // Cardiac MRI (Optimized for la_003)
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0.0f, 0.0f, 0.0f, 0.0f, 0.0f),
-                GradientStop(0.2f, 0.0f, 0.0f, 0.0f, 0.0f),         // Cut off noise up to 20%
-                GradientStop(0.25f, 1.0f, 0.14f, 0.17f, 0.05f),     // Myocardium (Low opacity)
-                GradientStop(0.35f, 1.0f, 0.35f, 0.17f, 0.2f),      // Muscle
-                GradientStop(0.5f, 1.0f, 0.64f, 0.11f, 0.5f),       // Dense
-                GradientStop(0.7f, 0.94f, 0.92f, 0.73f, 0.8f),      // Blood Pool / Contrast
-                GradientStop(1.0f, 1.0f, 1.0f, 1.0f, 1.0f)
-            ),
-            name = "Cardiac MRI"
-        ),
-        // Cardiac MRI (Blood Pool)
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0.0f, 0.0f, 0.0f, 0.0f, 0.0f),
-                GradientStop(0.4f, 0.0f, 0.0f, 0.0f, 0.0f),         // Aggressive cutoff
-                GradientStop(0.45f, 0.8f, 0.0f, 0.0f, 0.1f),        // Transition
-                GradientStop(0.55f, 1.0f, 0.2f, 0.2f, 0.6f),        // Blood Pool edge
-                GradientStop(0.7f, 1.0f, 0.8f, 0.8f, 0.9f),         // Blood Pool center
-                GradientStop(1.0f, 1.0f, 1.0f, 1.0f, 1.0f)
-            ),
-            name = "Cardiac MRI (Blood Pool)"
-        ),
-        // High contrast for seeing structures
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0f, 0f, 0f, 0f, 0f),
-                GradientStop(0.05f, 0.1f, 0.1f, 0.1f, 0.0f),
-                GradientStop(0.2f, 0.3f, 0.3f, 0.3f, 0.3f),
-                GradientStop(0.4f, 0.6f, 0.6f, 0.6f, 0.6f),
-                GradientStop(0.6f, 0.85f, 0.85f, 0.85f, 0.8f),
-                GradientStop(1f, 1f, 1f, 1f, 1f)
-            ),
-            name = "High Contrast"
-        ),
-        // Maximum visibility
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0f, 0f, 0f, 0f, 0f),
-                GradientStop(0.1f, 0.2f, 0.2f, 0.25f, 0.4f),
-                GradientStop(0.3f, 0.5f, 0.5f, 0.6f, 0.7f),
-                GradientStop(0.5f, 0.8f, 0.8f, 0.9f, 0.9f),
-                GradientStop(1f, 1f, 1f, 1f, 1f)
-            ),
-            name = "Maximum"
-        ),
-        // Soft tissue
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0f, 0f, 0f, 0f, 0f),
-                GradientStop(0.15f, 0.3f, 0.2f, 0.15f, 0.2f),
-                GradientStop(0.35f, 0.7f, 0.5f, 0.4f, 0.5f),
-                GradientStop(0.6f, 1.0f, 0.8f, 0.7f, 0.8f),
-                GradientStop(1f, 1f, 1f, 1f, 1f)
-            ),
-            name = "Soft Tissue"
-        ),
-        // Vascular (red tint)
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0f, 0f, 0f, 0f, 0f),
-                GradientStop(0.2f, 0.3f, 0.05f, 0.05f, 0.3f),
-                GradientStop(0.4f, 0.8f, 0.2f, 0.15f, 0.6f),
-                GradientStop(0.7f, 1.0f, 0.5f, 0.3f, 0.9f),
-                GradientStop(1f, 1f, 0.8f, 0.6f, 1f)
-            ),
-            name = "Vascular"
-        ),
-        TransferFunction.bonePreset(),
-        TransferFunction.hotMetalPreset(),
-        TransferFunction(
-            gradientStops = listOf(
-                GradientStop(0f, 0f, 0f, 0f, 0f),
-                GradientStop(0.5f, 0.3f, 0.6f, 0.9f, 0.5f),
-                GradientStop(1f, 0.9f, 0.3f, 0.1f, 1f)
-            ),
-            name = "Purple-Gold"
-        )
-    )
+    private val transferFunctionPresets = PresetRepository.presets
     private var needsTextureUpdate = false
     
     // Callback for notifying UI about state changes
@@ -395,36 +297,24 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     // === Input Handling ===
     
     fun handleMouseDrag(dx: Float, dy: Float) {
-        val sensitivity = 0.005f
-        camera = camera.orbit(-dx * sensitivity, -dy * sensitivity)
+        camera = CameraInputHandler.handleDrag(camera, dx, dy)
     }
     
     fun handleMouseScroll(delta: Float) {
-        val zoomFactor = if (delta > 0) 0.9f else 1.1f
-        camera = camera.zoom(zoomFactor)
+        camera = CameraInputHandler.handleScroll(camera, delta)
     }
     
     fun handleKeyPress(key: Char) {
         println("[JOGLVolumeRenderer] Key pressed: $key")
-        val speed = 0.1f
-        camera = when (key.lowercaseChar()) {
-            'w' -> camera.moveForward(speed)
-            's' -> camera.moveForward(-speed)
-            'a' -> camera.moveRight(-speed)
-            'd' -> camera.moveRight(speed)
-            ' ' -> camera.moveUp(speed)
-            'q' -> camera.moveUp(-speed)
-            'p' -> {
-                cycleTransferFunctionPreset()
-                camera
-            }
+        
+        when (key.lowercaseChar()) {
+            'p' -> cycleTransferFunctionPreset()
             'g' -> {
                 // Toggle debug mode: 0 -> 1 -> 2 -> 0
                 debugMode = (debugMode + 1) % 3
                 println("Debug mode: $debugMode (0=normal, 1=density, 2=coords)")
-                camera
             }
-            else -> camera
+            else -> camera = CameraInputHandler.handleKeyMovement(camera, key)
         }
     }
     

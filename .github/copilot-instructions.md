@@ -9,6 +9,11 @@
 2. Follow modular structures. Put common code into reusable core module.
 3. The Rendering engine should work on mobile platform as well. Do not write shader code that is not supported on OpenGL ES 2.0 or higher. Use pragma directives to ensure compatibility.
 
+# Architectural Constraints (CRITICAL)
+1. **Windowing System**: Do NOT refactor to use `GLFW` or `LWJGL` directly. We use `JOGL` inside a `SwingPanel` because it provides the most stable offscreen rendering context on macOS/Metal.
+2. **Layering**: `core` must never depend on `desktop` or `renderer`.
+3. **State Management**: Keep UI state (Compose `MutableState`) separate from Rendering state (Uniforms/Buffers).
+
 # UI Handling
 1. Primary UI framwork is Desktop Compose and Jetpack Compose. Avoid using AWT/Swing components and classes unless absolutely necessary.
 
