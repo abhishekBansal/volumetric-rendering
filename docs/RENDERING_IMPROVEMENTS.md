@@ -11,7 +11,7 @@ This document needs to outline the roadmap for upgrading the rendering engine to
 - [x] **Task 1.2: Implement Blinn-Phong Shading**
   - Replace reflection vector calculation with Half-Vector (`H`) for softer highlights.
   - Add `Material` struct uniform (Ambient `Ka`, Diffuse `Kd`, Specular `Ks`, Shininess).
-- [ ] **Task 1.3: Gradient Estimation Tuning**
+- [x] **Task 1.3: Gradient Estimation Tuning**
   - Improve `getNormal()` to use a configurable `delta` (epsilon).
   - Use `soot` reduction technique: blur the gradient slightly by increasing the sampling distance for normals (e.g., `2.0 * texelSize`).
 

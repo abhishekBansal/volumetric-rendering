@@ -47,8 +47,9 @@ uniform vec3 sliceMin;
 uniform vec3 sliceMax;
 
 // Calculate gradient for normals using central differences
+// Uses a wider kernel (2.0 * texelSize) to smooth out high-frequency noise
 vec3 getNormal(vec3 pos) {
-    vec3 s = texelSize;
+    vec3 s = texelSize * 2.0;
     if (length(s) < 1e-6) s = vec3(0.01);
 
     float gx = texture(volumeData, pos + vec3(s.x, 0.0, 0.0)).r -
