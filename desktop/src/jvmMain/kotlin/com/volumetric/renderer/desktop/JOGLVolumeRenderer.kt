@@ -178,6 +178,16 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             val scaleZ = physZ / maxPhys
 
             val model = Matrix4x4.scale(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
+            
+            // Auto-configure optimal step size (0.5 voxels) based on volume dimensions
+            // This ensures we sample frequently enough for the distinct features of this specific volume
+            val minDimension = min(min(volume.dimensions.width, volume.dimensions.height), volume.dimensions.depth)
+            val optimalStep = 1.0f / minDimension.toFloat() / 2.0f
+            // Clamp to reasonable limits to prevent performance kills on huge volumes
+            stepSize.value = optimalStep.coerceIn(0.0005f, 0.002f)
+            
+            println("[display] Auto-configured step size: ${stepSize.value} (based on min dim: $minDimension)")
+            
             val bboxMin = Vector3(0f, 0f, 0f)
             val bboxMax = Vector3(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
 
