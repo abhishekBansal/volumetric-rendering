@@ -31,6 +31,9 @@ layout(std140) uniform Lighting {
 uniform sampler3D volumeData;
 uniform sampler1D transferFunction;
 
+// Volume parameters
+uniform vec3 texelSize;
+
 // Ray marching parameters
 uniform vec3 cameraPosition;
 uniform vec3 bboxMin;
@@ -45,33 +48,46 @@ uniform vec3 sliceMax;
 
 // Calculate gradient for normals using central differences
 vec3 getNormal(vec3 pos) {
-    vec3 sampleOffset = vec3(0.01);
+    vec3 s = texelSize;
+    if (length(s) < 1e-6) s = vec3(0.01);
+
+    float gx = texture(volumeData, pos + vec3(s.x, 0.0, 0.0)).r -
+               texture(volumeData, pos - vec3(s.x, 0.0, 0.0)).r;
+    float gy = texture(volumeData, pos + vec3(0.0, s.y, 0.0)).r -
+               texture(volumeData, pos - vec3(0.0, s.y, 0.0)).r;
+    float gz = texture(volumeData, pos + vec3(0.0, 0.0, s.z)).r -
+               texture(volumeData, pos - vec3(0.0, 0.0, s.z)).r;
     
-    float gx = texture(volumeData, pos + vec3(sampleOffset.x, 0.0, 0.0)).r -
-               texture(volumeData, pos - vec3(sampleOffset.x, 0.0, 0.0)).r;
-    float gy = texture(volumeData, pos + vec3(0.0, sampleOffset.y, 0.0)).r -
-               texture(volumeData, pos - vec3(0.0, sampleOffset.y, 0.0)).r;
-    float gz = texture(volumeData, pos + vec3(0.0, 0.0, sampleOffset.z)).r -
-               texture(volumeData, pos - vec3(0.0, 0.0, sampleOffset.z)).r;
-    
-    return normalize(vec3(gx, gy, gz));
+    vec3 g = vec3(gx, gy, gz);
+    if (dot(g, g) < 1e-10) return vec3(0.0);
+    return normalize(-g);
 }
 
-// Phong lighting model
-vec3 phong(vec3 N, vec3 V, vec3 L, vec3 baseColor) {
-    // Ambient
-    vec3 ambient = Ka * ambientLight;
+// Calculate lighting using Phong/Blinn-Phong model
+vec3 calculateLighting(vec3 position, vec3 N, vec3 V, vec3 baseColor) {
+    vec3 L = normalize(lightPosition - position); // Vector to light
+    vec3 H = normalize(L + V);                    // Half vector (Blinn-Phong)
     
-    // Diffuse
-    float diff = max(dot(N, L), 0.0);
-    vec3 diffuse = Kd * diff * lightColor * baseColor;
+    // Fallback constants in case UBO values are zero/failed
+    float ambientStrength = length(Ka * ambientLight);
+    vec3 effectiveAmbient = (ambientStrength < 0.01) ? vec3(0.5) : (Ka * ambientLight);
     
-    // Specular
-    vec3 R = reflect(-L, N);
-    float spec = pow(max(dot(R, V), 0.0), shininess);
+    float diffuseStrength = length(Kd * lightColor);
+    vec3 effectiveDiffuse = (diffuseStrength < 0.01) ? vec3(0.5) : (Kd * lightColor);
+    
+    // Diffuse - Half-Lambert (Wrapped) to prevent harsh black shadows
+    // range [0.0, 1.0]
+    float ndotl = dot(N, L);
+    float diff = ndotl * 0.5 + 0.5;
+    
+    // Specular - Blinn-Phong
+    // Use max(dot(N, H), 0.0) for specular highlight
+    float specAngle = max(dot(N, H), 0.0);
+    float spec = pow(specAngle, max(shininess, 10.0));
     vec3 specular = Ks * spec * lightColor;
     
-    return ambient + diffuse + specular;
+    // (Ambient + Diffuse) * Color + Specular
+    return (effectiveAmbient + effectiveDiffuse * diff) * baseColor + specular;
 }
 
 void main() {
@@ -169,18 +185,10 @@ void main() {
         
         // Low threshold to keep details but avoid zero-alpha calculations
         if (color.a > 0.0001) {
-            // Simple gradient-based shading (compute normal in texture space)
             vec3 N = getNormal(texPos);
-            vec3 L = normalize(lightPosition - position);
+            vec3 V = -rayDir;
             
-            // Basic diffuse shading
-            float diffuse = max(dot(N, L), 0.0);
-            
-            // Combine ambient + diffuse (simple model)
-            // This ensures the color is always visible (ambient) and lit by the light (diffuse)
-            float shading = 0.3 + 0.7 * diffuse;
-            
-            vec3 shadedColor = color.rgb * shading;
+            vec3 shadedColor = calculateLighting(position, N, V, color.rgb);
             
             // Front-to-back compositing
             finalColor.rgb += (1.0 - finalColor.a) * color.a * shadedColor;
