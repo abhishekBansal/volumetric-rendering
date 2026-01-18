@@ -22,9 +22,9 @@ This document needs to outline the roadmap for upgrading the rendering engine to
   - [x] **Task 2.1.1: Implement High Res Mode**
     - Set default `stepSize` to `0.001` (High Quality).
     - Increase `maxSteps` to `2000` to ensure ray traversal.
-  - [ ] **Task 2.1.2: Implement Interaction Mode**
+  - [x] **Task 2.1.2: Implement Interaction Mode**
     - Automatically switch resolution or step count when the camera is moving.
-- [ ] **Task 2.2: Opacity Correction**
+- [x] **Task 2.2: Opacity Correction**
   - Ensure transparency is mathematically correct regardless of `stepSize`.
   - Formula: `alpha_corrected = 1.0 - pow(1.0 - alpha_sample, stepSize * reference_sampling_rate)`.
 - [ ] **Task 2.3: Jittering (Stochastic Raycasting) [Optional]**

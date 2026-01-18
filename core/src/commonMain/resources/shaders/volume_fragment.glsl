@@ -179,10 +179,15 @@ void main() {
         // Transfer function lookup
         vec4 color = texture(transferFunction, density);
         
-        // Apply opacity correction for step size
-        // Clamp alpha to avoid NaN in pow (if alpha > 1.0 due to filtering)
+        // Opacity Correction
+        // Standard formula: A_corrected = 1.0 - (1.0 - A_sampled)^(step / ref_step)
+        // Here, densityScale (150.0) acts as (1.0 / ref_step)
+        float densityScale = 150.0;
+        
+        // Clamp alpha to avoid NaN in pow (e.g. if alpha > 1.0 due to filtering)
+        // We use 0.999 to limit infinity issues with log() based pow implementations
         float alpha = clamp(color.a, 0.0, 0.999);
-        color.a = 1.0 - pow(1.0 - alpha, stepSize * 150.0);
+        color.a = 1.0 - pow(1.0 - alpha, stepSize * densityScale);
         
         // Low threshold to keep details but avoid zero-alpha calculations
         if (color.a > 0.0001) {
