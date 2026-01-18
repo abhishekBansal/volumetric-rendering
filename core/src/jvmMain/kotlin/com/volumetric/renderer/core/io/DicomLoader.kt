@@ -193,12 +193,12 @@ object DicomLoader {
                             pixels
                         } else {
                             println("⚠️  No DICOM ImageReader found, using raw extraction")
-                            extractPixelData(dataset, width, height, 1, metadata)
+                            extractPixelData(dataset, width, height, 1, metadata, dataset.bigEndian())
                         }
                     } catch (e: Exception) {
                         println("⚠️  Image decompression failed: ${e.message}")
                         e.printStackTrace()
-                        extractPixelData(dataset, width, height, 1, metadata)
+                        extractPixelData(dataset, width, height, 1, metadata, dataset.bigEndian())
                     }
                     
                     // Copy slice data into volume
@@ -251,7 +251,8 @@ object DicomLoader {
         width: Int,
         height: Int,
         depth: Int,
-        metadata: DicomMetadata
+        metadata: DicomMetadata,
+        bigEndian: Boolean = false
     ): FloatArray {
         val totalPixels = width * height * depth
         val floatData = FloatArray(totalPixels)
@@ -323,7 +324,7 @@ object DicomLoader {
             16 -> {
                 // 16-bit data
                 val buffer = ByteBuffer.wrap(bytes)
-                buffer.order(ByteOrder.LITTLE_ENDIAN)
+                buffer.order(if (bigEndian) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN)
                 
                 for (i in 0 until minOf(totalPixels, bytes.size / 2)) {
                     if (buffer.remaining() >= 2) {

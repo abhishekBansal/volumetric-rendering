@@ -156,6 +156,14 @@ class JOGLRenderBackend(private var gl: GL4) : RenderBackend {
         shader.setUniform("volumeData", 0)
         shader.setUniform("transferFunction", 1)
         
+        // Pass texel size for correct gradient calculation
+        shader.setUniform(
+            "texelSize", 
+            1.0f / volTexture.width, 
+            1.0f / volTexture.height, 
+            1.0f / volTexture.depth
+        )
+        
         // Set uniforms
         shader.setUniform("cameraPosition", state.cameraPosition)
         shader.setUniform("bboxMin", state.bboxMin)

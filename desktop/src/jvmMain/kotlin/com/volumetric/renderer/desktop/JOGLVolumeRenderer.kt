@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import kotlin.math.PI
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * JOGL-based volume renderer implementing GLEventListener.
@@ -38,6 +40,11 @@ import kotlin.math.PI
  */
 class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEventListener {
     
+    // Dynamic Quality Constants moved to bottom companion object
+
+    private var lastInteractionTime = 0L
+    private var isInteracting = false
+
     private var backend: JOGLRenderBackend? = null
     private var camera = Camera(
         position = Vector3(2f, 2f, 3f),
@@ -76,8 +83,9 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     var lightPosition = mutableStateOf(Vector3(2f, 2f, 2f))
     
     // Rendering Quality
-    var stepSize = mutableStateOf(0.004f)
-    var maxSteps = mutableStateOf(512)
+    // High Quality Mode Default
+    var stepSize = mutableStateOf(0.001f) // Finer steps for smoother isosurfaces
+    var maxSteps = mutableStateOf(2000)   // Increased steps to cover volume diagonal at finer step size
     
     // Slicing State (Normalized 0.0 - 1.0)
     var sliceXMin = mutableStateOf(0.0f)
@@ -170,6 +178,16 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             val scaleZ = physZ / maxPhys
 
             val model = Matrix4x4.scale(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
+            
+            // Auto-configure optimal step size (0.5 voxels) based on volume dimensions
+            // This ensures we sample frequently enough for the distinct features of this specific volume
+            val minDimension = min(min(volume.dimensions.width, volume.dimensions.height), volume.dimensions.depth)
+            val optimalStep = 1.0f / minDimension.toFloat() / 2.0f
+            // Clamp to reasonable limits to prevent performance kills on huge volumes
+            stepSize.value = optimalStep.coerceIn(0.0005f, 0.002f)
+            
+            println("[display] Auto-configured step size: ${stepSize.value} (based on min dim: $minDimension)")
+            
             val bboxMin = Vector3(0f, 0f, 0f)
             val bboxMax = Vector3(scaleX.toFloat(), scaleY.toFloat(), scaleZ.toFloat())
 
@@ -222,6 +240,13 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             camera.near,
             camera.far
         )
+
+        // Dynamic Quality Adjustment
+        if (isInteracting && (System.currentTimeMillis() - lastInteractionTime > INTERACTION_TIMEOUT_MS)) {
+            isInteracting = false
+        }
+        val targetStep = if (isInteracting) max(stepSize.value, INTERACTION_STEP) else stepSize.value
+        val targetSteps = if (isInteracting) min(maxSteps.value, INTERACTION_STEPS) else maxSteps.value
         
         renderState = renderState?.copy(
             viewMatrix = viewMatrix,
@@ -235,8 +260,8 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
             lightColor = Vector3(lightColor.value.red, lightColor.value.green, lightColor.value.blue),
             ambientLight = Vector3(ambientLightColor.value.red, ambientLightColor.value.green, ambientLightColor.value.blue),
             lightPosition = lightPosition.value,
-            stepSize = stepSize.value,
-            maxSteps = maxSteps.value,
+            stepSize = targetStep,
+            maxSteps = targetSteps,
             sliceMin = Vector3(sliceXMin.value, sliceYMin.value, sliceZMin.value),
             sliceMax = Vector3(sliceXMax.value, sliceYMax.value, sliceZMax.value)
         )
@@ -307,10 +332,14 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     // === Input Handling ===
     
     fun handleMouseDrag(dx: Float, dy: Float) {
+        isInteracting = true
+        lastInteractionTime = System.currentTimeMillis()
         camera = CameraInputHandler.handleDrag(camera, dx, dy)
     }
     
     fun handleMouseScroll(delta: Float) {
+        isInteracting = true
+        lastInteractionTime = System.currentTimeMillis()
         camera = CameraInputHandler.handleScroll(camera, delta)
     }
     
@@ -546,6 +575,10 @@ class JOGLVolumeRenderer(private val initialDicomPath: String? = null) : GLEvent
     }
     
     companion object {
+        private const val INTERACTION_STEP = 0.005f
+        private const val INTERACTION_STEPS = 400
+        private const val INTERACTION_TIMEOUT_MS = 500L 
+
         /**
          * Create a GLJPanel configured for this renderer
          */

@@ -5,9 +5,10 @@ A high-performance, GPU-accelerated 3D volumetric rendering application built wi
 ## 🚀 Features
 
 ### 🖥️ Rendering Engine
-- **GPU Ray Casting:** High-quality volumetric rendering using GLSL 4.1 shaders.
-- **Advanced Shading:** Phong lighting model with configurable ambient, diffuse, and specular properties.
-- **Opacity Correction:** Artifact-free rendering with opacity correction and gradient-based lighting.
+- **GPU Ray Casting:** High-quality volumetric rendering using GLSL 4.1 shaders with adaptive step size calculation.
+- **Advanced Shading:** Blinn-Phong model with Half-Lambert diffusion for realistic lighting and soft shadows without "soot" artifacts.
+- **Dynamic Quality:** Fluid interaction system that instantly switches between responsive performance mode and high-fidelity sampling when stationary.
+- **Opacity Correction:** Mathematically correct opacity accumulation independent of sampling rate.
 - **Offscreen Rendering:** Stable, flicker-free rendering using FBOs integrated into Compose Desktop.
 
 ### 🎨 Visualization Tools
@@ -21,7 +22,7 @@ A high-performance, GPU-accelerated 3D volumetric rendering application built wi
 ### 📂 Data Support
 - **DICOM Support:** Loads single DICOM files and full series directories using `dcm4che`.
 - **NIfTI Support:** Native support for `.nii` and `.nii.gz` files.
-- **16-bit Precision:** Full support for high-dynamic-range medical data.
+- **16-bit Precision:** Full support for high-dynamic-range medical data with automatic Big/Little Endian handling and range normalization.
 
 ## 🛠️ Technology Stack
 
