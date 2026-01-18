@@ -34,12 +34,13 @@ This document needs to outline the roadmap for upgrading the rendering engine to
 ## Phase 3: Transfer Function & Data Handling
 **Goal**: Smooth and accurate color mapping.
 
-- [ ] **Task 3.1: Texture Filtering**
-  - Ensure Transfer Function texture uses `GL_LINEAR` interpolation.
-  - Validate that the Texture generation on CPU side uses correct interpolation (Linear vs Spline).
-- [ ] **Task 3.2: 16-bit Data Support**
-  - Verify current handling of 16-bit DICOM/Raw data.
-  - Ensure proper normalization range [0..1] in the shader.
+- [x] **Task 3.1: Texture Filtering**
+  - [x] Ensure Transfer Function texture uses `GL_LINEAR` interpolation. (Equivalent in JOGL: `GL_LINEAR`)
+  - [x] Validate that the Texture generation on CPU side uses correct interpolation (Linear vs Spline).
+- [x] **Task 3.2: 16-bit Data Support**
+  - [x] Verify current handling of 16-bit DICOM/Raw data. (Correctly loaded into FloatArray)
+  - [x] Ensure proper normalization range [0..1] in the shader. (Data is pre-normalized to [0..1] on CPU).
+  - [x] **Fix**: Added proper Big Endian support for raw DICOM data extraction.
 
 ## Execution Strategy
 - All changes must be tested on both standard and noisy datasets (like CT-Abdomen).
