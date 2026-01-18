@@ -19,8 +19,11 @@ This document needs to outline the roadmap for upgrading the rendering engine to
 **Goal**: Balance performance and visual fidelity.
 
 - [ ] **Task 2.1: Dynamic Quality Adjustment**
-  - Implement two rendering modes: `Interaction` (Low Res) and `Stationary` (High Res).
-  - Automatically switch resolution or step count when the camera is moving.
+  - [x] **Task 2.1.1: Implement High Res Mode**
+    - Set default `stepSize` to `0.001` (High Quality).
+    - Increase `maxSteps` to `2000` to ensure ray traversal.
+  - [ ] **Task 2.1.2: Implement Interaction Mode**
+    - Automatically switch resolution or step count when the camera is moving.
 - [ ] **Task 2.2: Opacity Correction**
   - Ensure transparency is mathematically correct regardless of `stepSize`.
   - Formula: `alpha_corrected = 1.0 - pow(1.0 - alpha_sample, stepSize * reference_sampling_rate)`.
