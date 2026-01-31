@@ -28,7 +28,7 @@ A high-performance, GPU-accelerated 3D volumetric rendering application built wi
 - **NIfTI Support:** Native support for `.nii` and `.nii.gz` files.
 - **16-bit Precision:** Full support for high-dynamic-range medical data with automatic Big/Little Endian handling and range normalization.
 
-## �🛠️ Technology Stack
+## 🛠️ Technology Stack
 
 - **Language:** Kotlin 1.9.22 (Multiplatform)
 - **UI Framework:** Compose Desktop 1.5.11
